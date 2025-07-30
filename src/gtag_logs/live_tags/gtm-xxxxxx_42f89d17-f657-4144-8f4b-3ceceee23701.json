@@ -1,0 +1,43 @@
+{
+  "targetUrl": "http://www.10bestpr.com",
+  "verification": {
+    "status": "LIVE",
+    "confidence": 85,
+    "tier1": {
+      "activity": true
+    },
+    "tier2": {},
+    "tier3": {}
+  },
+  "requests": [
+    {
+      "tag": "GTM-XXXXXX",
+      "time": "2025-04-17T06:39:14.205Z",
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-GL5CDLYY2N&cx=c&_slc=1",
+      "method": "GET",
+      "headers": {
+        "accept-language": "en-US,en;q=0.9",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "referer": "https://www.10bestpr.com/",
+        "accept": "*/*"
+      },
+      "postData": null,
+      "hash": null
+    },
+    {
+      "tag": "GTM-XXXXXX",
+      "time": "2025-04-17T06:39:14.431Z",
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-GL5CDLYY2N&gtm=45je54f1v9125718052za200&_p=1744871954203&gcd=13l3l3l3l2l1&npa=0&dma=0&tag_exp=102509683~102803279~102813109~102887800~102926062~103027016~103051953~103055465~103077950~103101750~103101752~103106314~103106316&ul=en-us&sr=1920x1080&cid=371063630.1744871954&ir=1&uaa=&uab=&uafvl=&uamb=0&uam=&uap=&uapv=&uaw=0&are=1&frm=0&pscdl=&_eu=EBAI&_s=1&dl=https%3A%2F%2Fwww.10bestpr.com%2F&dt=Public%20Relations%20Reports%20%7C%20Top%20PR%20Agencies%20%7C%2010%20Best%20PR&sid=1744871954&sct=1&seg=0&_tu=wAQ&en=page_view&_fv=1&_ss=1&_ee=1&tfd=1196",
+      "method": "POST",
+      "headers": {
+        "accept-language": "en-US,en;q=0.9",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "referer": "https://www.10bestpr.com/",
+        "accept": "*/*",
+        "origin": "https://www.10bestpr.com"
+      },
+      "postData": null,
+      "hash": null
+    }
+  ]
+}

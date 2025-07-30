@@ -1,0 +1,4 @@
+mitmproxy>=10
+python-socketio>=5.9
+websocket-client>=1.7
+requests>=2.31

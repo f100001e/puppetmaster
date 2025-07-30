@@ -1,0 +1,84 @@
+/* Base Layout */
+.dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Header */
+header h1 {
+    color: #2c3e50;
+}
+
+/* Summary Cards */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.summary-cards .card {
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+.summary-cards .card:hover {
+    transform: translateY(-5px);
+}
+
+/* Preset Cards */
+.preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 0.5rem;
+}
+.preset-card {
+    padding: 1rem;
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
+}
+.preset-card:hover {
+    border-color: #0d6efd;
+    transform: translateY(-2px);
+}
+
+.preset-card:hover {
+    border-color: #0d6efd;
+    transform: translateY(-2px);
+}
+
+
+/* Preset Details */
+.preset-details {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e9ecef;
+    font-size: 0.875rem;
+}
+
+/* Activity Log Table */
+.activity-log table {
+    border-collapse: collapse;
+}
+.activity-log th,
+.activity-log td {
+    padding: 0.75rem;
+}
+
+/* Toasts */
+.toast-container {
+    z-index: 1100;
+}
+
+/* Animations (wire up in JS if needed) */
+@keyframes highlight { from { background: rgba(255,235,59,0.3) } to { background: transparent } }
+@keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* Responsive tweaks (mostly handled by Bootstrap) */
+@media (max-width: 576px) {
+    .dashboard { padding: 1rem; }
+}

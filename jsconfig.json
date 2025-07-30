@@ -1,0 +1,11 @@
+
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "checkJs": true,
+    "target": "es2020",  // Or your Node.js version
+    "lib": ["es2020"]    // Adds JS API types (optional)
+  },
+  "include": ["**/*.js"],
+  "exclude": ["node_modules"]
+}

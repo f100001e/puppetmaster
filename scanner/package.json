@@ -1,0 +1,31 @@
+{
+  "name": "ua-honeypot-scanner",
+  "version": "1.0.0",
+  "main": "index.cjs",
+  "scripts": {
+    "start": "node index.cjs",
+    "dev": "nodemon index.cjs",
+    "monitor": "GTAGS=monitor node index.cjs --live",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.4.5",
+    "http-proxy": "^1.18.1",
+    "proxy": "^2.2.0",
+    "puppeteer-extra": "^3.3.4",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "socket.io-client": "^4.7.5",
+    "tail": "^2.2.6",
+    "ua-parser-js": "^2.0.4",
+    "user-agents": "^1.1.595"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

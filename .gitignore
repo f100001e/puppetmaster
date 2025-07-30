@@ -1,0 +1,72 @@
+Root .gitignore for user-agent-honeypot mono‑repo
+
+-------------------------------------------------
+
+▸ Keep the repo portable between macOS host, Windows VM, Docker builds,
+
+WebStorm/VS Code, and Visual Studio.
+
+--- IDE / Editor junk -------------------------------------------------------
+
+.idea/
+.vscode/*
+!.vscode/extensions.json   # keep extension recommendations
+.DS_Store
+Thumbs.db
+
+--- OS / swap / temp --------------------------------------------------------
+
+*.sw?
+*.swo
+*.swn
+
+--- Node / JavaScript -------------------------------------------------------
+
+node_modules/
+dist/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+--- Environment & secrets ---------------------------------------------------
+
+.env*
+
+e.g. .env, .env.local, .env.production
+
+--- Databases / runtime artefacts ------------------------------------------
+
+*.db
+.sqlite
+logs/
+*.log
+*.pid
+
+--- Docker artefacts --------------------------------------------------------
+
+*.tar
+.docker/
+docker-compose.override.yml
+
+--- Visual Studio (Windows VM) ---------------------------------------------
+
+*.sln
+*.suo
+.ntvs
+*.njsproj
+
+--- Packet captures ---------------------------------------------------------
+
+*.pcap
+*.pcapng
+
+--- Misc --------------------------------------------------------------------
+
+*.bak
+*~
+
+# Python virtual-env
+venv/
