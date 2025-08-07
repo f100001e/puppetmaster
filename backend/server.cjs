@@ -1,176 +1,120 @@
 #!/usr/bin/env node
 'use strict';
 
-//──────────────────────────────────────────────────────────────────
-// 0. Imports & Configuration
-//──────────────────────────────────────────────────────────────────
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const express = require('express');
-const { Server } = require('socket.io');
-const Database = require('better-sqlite3');
-const dotenv = require('dotenv');
+/*─────────────────────────── 0. Imports & config ───────────────────────────*/
+const fs        = require('fs');
+const path      = require('path');
+const http      = require('http');
+const express   = require('express');
+const { Server }= require('socket.io');
+const Database  = require('better-sqlite3');
+const dotenv    = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-//──────────────────────────────────────────────────────────────────
-// 1. Constants & Initialization
-//──────────────────────────────────────────────────────────────────
-const PORT = +process.env.PORT || 3000;
-const DBPATH = process.env.DB_PATH || path.join(__dirname, '../data/gtag_monitor.db');
-const LOGDIR = path.join(__dirname, '../gtag_logs');
+/*──────────────────────── 1. Constants & init dirs ─────────────────────────*/
+const PORT     = +process.env.BACKEND_PORT || 3000;
+const FRONTEND = process.env.FRONTEND_URL  || 'http://localhost:5173';
+const ORIGINS  = (process.env.ALLOWED_ORIGINS || FRONTEND).split(',');
+const DBPATH   = process.env.DB_PATH || path.join(__dirname,'../data/gtag_monitor.db');
+const LOGDIR   = process.env.LOG_DIR || path.join(__dirname,'../gtag_logs');
 
-// Ensure directories exist
-fs.mkdirSync(path.dirname(DBPATH), { recursive: true });
-fs.mkdirSync(LOGDIR, { recursive: true });
+fs.mkdirSync(path.dirname(DBPATH), { recursive:true });
+fs.mkdirSync(LOGDIR,            { recursive:true });
 
-// Log file setup
-const logFile = path.join(LOGDIR, `ua_${new Date().toISOString().replace(/[:T]/g, '-').split('.')[0]}.log`);
-const log = fs.createWriteStream(logFile, { flags: 'a' });
+const logFile = path.join(LOGDIR,`ua_${new Date().toISOString().replace(/[:T]/g,'-').split('.')[0]}.log`);
+const log     = fs.createWriteStream(logFile,{flags:'a'});
 console.log(`📝 UA session log → ${logFile}`);
 
-//──────────────────────────────────────────────────────────────────
-// 2. Database Setup
-//──────────────────────────────────────────────────────────────────
+/*─────────────────────────── 2. SQLite schema ─────────────────────────────*/
 const db = new Database(DBPATH);
-db.pragma("foreign_keys = ON");
-db.pragma("journal_mode = WAL");
-db.pragma("synchronous = NORMAL");
-
+db.pragma('foreign_keys = ON');
+db.pragma('journal_mode = WAL');
 db.exec(`
-  CREATE TABLE IF NOT EXISTS ua_log (
+  CREATE TABLE IF NOT EXISTS ua_log(
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    ua       TEXT    NOT NULL,
-    is_http  INTEGER NOT NULL CHECK(is_http IN (0,1)),
+    ua       TEXT NOT NULL,
+    is_http  INTEGER NOT NULL CHECK(is_http IN(0,1)),
     risk     INTEGER NOT NULL CHECK(risk BETWEEN 0 AND 100),
     ts       INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS idx_ua_log_ts ON ua_log(ts);
+  CREATE INDEX IF NOT EXISTS idx_ua_ts ON ua_log(ts);
 `);
+const insertUA        = db.prepare(`INSERT INTO ua_log(ua,is_http,risk,ts) VALUES(@ua,@is_http,@risk,@ts)`);
+const lastInsertRowId = db.prepare(`SELECT last_insert_rowid() id`).pluck();
 
-const insertUA = db.prepare(`
-  INSERT INTO ua_log (ua, is_http, risk, ts)
-  VALUES (@ua, @is_http, @risk, @ts)
-`);
+/*────────────────────────── 3. Threat analyser ─────────────────────────────*/
+function analyzeThreat(ua='', isHttp=false){
+  ua = String(ua).toLowerCase();
+  if(!ua) return 10;
+  if(['sqlmap','nmap','metasploit','hydra','burpsuite'].some(p=>ua.includes(p))) return 100;
 
-const getLastInsertId = db.prepare(`SELECT last_insert_rowid() AS id`).pluck();
+  const scoreMap = { acunetix:85,netsparker:80,dirbuster:75 };
+  for(const [p,score] of Object.entries(scoreMap))
+    if(ua.includes(p)) return score;
 
-//──────────────────────────────────────────────────────────────────
-// 3. Threat Analysis
-//──────────────────────────────────────────────────────────────────
-function analyzeThreat(ua = '', isHttp = false) {
-  if (!ua || typeof ua !== 'string') return 10;
-
-  const uaLower = ua.toLowerCase();
-  let risk = 10;
-
-  // Critical patterns
-  const critical = ['sqlmap', 'nmap', 'metasploit', 'hydra', 'burpsuite'];
-  if (critical.some(p => uaLower.includes(p))) return 100;
-
-  // Suspicious patterns
-  const suspicious = {
-    'acunetix': 85, 'netsparker': 80, 'dirbuster': 75
-  };
-  for (const [pattern, score] of Object.entries(suspicious)) {
-    if (uaLower.includes(pattern)) risk = Math.max(risk, score);
-  }
-
-  return isHttp ? risk : Math.min(100, risk + 15);
+  return isHttp ? 10 : 25;
 }
 
-//──────────────────────────────────────────────────────────────────
-// 4. Server Setup
-//──────────────────────────────────────────────────────────────────
-const app = express();
+const app        = express();
 const httpServer = http.createServer(app);
 
+app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:8080');
-  res.header('Access-Control-Allow-Methods', 'GET, POST');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const origin = req.headers.origin;
+  if (!origin || ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || ORIGINS[0]);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.ALLOWED_ORIGINS || 'http://localhost:8080', // Match frontend
-    methods: ['GET', 'POST']
-  },
-  transports: ['websocket']  // Disable HTTP long-polling fallback
-});
-
-//──────────────────────────────────────────────────────────────────
-// 5. Routes
-//──────────────────────────────────────────────────────────────────
+/* 👉 static-file middleware – serves /public/index.html, css, js, etc. */
 app.use(express.static(path.resolve(__dirname, '../public')));
 
-app.get('/ping', (_, res) => res.send('pong'));
-
-app.get('/api/ua/top', (_req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT ua, MAX(risk) AS maxRisk, COUNT(*) AS hits
-      FROM ua_log
-      GROUP BY ua
-      ORDER BY maxRisk DESC, hits DESC
-      LIMIT 100
-    `).all();
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Database query failed' });
-  }
+/*───────────────────────── 5. Socket.IO namespace ─────────────────────────*/
+const io = new Server(httpServer,{
+  cors:{ origin:ORIGINS, methods:['GET','POST'] },
+  transports:['websocket']
 });
 
-//──────────────────────────────────────────────────────────────────
-// 6. Socket.IO Handlers
-//──────────────────────────────────────────────────────────────────
-io.of('/scanner').on('connection', (socket) => {
-  console.log(`⚡ Client connected: ${socket.id}`);
-
-  socket.on('uaSeen', (hit) => {
-    try {
-      if (!hit?.ua) throw new Error('Missing User-Agent');
-
-      const risk = analyzeThreat(String(hit.ua).slice(0, 1024), !!hit.isHttp);
-      const ts = Math.floor((hit.ts || Date.now()) / 1000);
-
-      insertUA.run({
-        ua: hit.ua,
-        is_http: hit.isHttp ? 1 : 0,
-        risk,
-        ts
-      });
-
-      io.of('/scanner').emit('uaUpdate', {
-        ...hit,
-        risk,
-        id: getLastInsertId.get().id
-      });
-    } catch (e) {
-      socket.emit('uaError', { message: e.message });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`⚡ Client disconnected: ${socket.id}`);
-  });
+io.of('/scanner').on('connection',socket=>{
+  console.log('⚡ socket',socket.id,'connected');
+  socket.on('disconnect',()=>console.log('⚡ socket',socket.id,'disconnected'));
 });
 
-//──────────────────────────────────────────────────────────────────
-// 7. Server Lifecycle
-//──────────────────────────────────────────────────────────────────
-httpServer.listen(PORT, () => {
-  console.log(`🌐 Server running on http://localhost:${PORT}`);
+/*────────────────────────────── 6. Routes ─────────────────────────────────*/
+app.get('/api/ua/top',(_req,res)=>{
+  const rows = db.prepare(`
+    SELECT ua, MAX(risk) maxRisk, COUNT(*) hits
+    FROM ua_log GROUP BY ua
+    ORDER BY maxRisk DESC, hits DESC LIMIT 100
+  `).all();
+  res.json(rows);
 });
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+/* <-- NEW: scanner posts here -------------------------------------------- */
+app.post('/log_ua',(req,res)=>{
+  try{
+    const { ua='', isHttp=false, ts=Date.now() } = req.body || {};
+    const risk = analyzeThreat(ua, isHttp);
+    insertUA.run({ ua:ua.slice(0,1024), is_http:isHttp?1:0, risk, ts:Math.floor(ts/1000) });
+    const id = lastInsertRowId.get();
+    io.of('/scanner').emit('uaUpdate',{ ua, isHttp, ts, risk, id });
+    log.write(`${new Date().toISOString()} ${ua} RISK:${risk}\n`);
+    res.sendStatus(200);
+  }catch(e){ res.status(400).json({error:e.message}); }
+});
+/* ----------------------------------------------------------------------- */
 
-function shutdown() {
-  console.log('\n🛑 Shutting down...');
-  httpServer.close(() => {
-    log.end('\n===== Server stopped =====\n', () => db.close());
-  });
-}
+app.get('/ping',(_req,res)=>res.send('pong'));
+
+/*────────────────────────── 7. lifecycle hooks ───────────────────────────*/
+httpServer.listen(PORT,()=>console.log(`🌐 backend on http://localhost:${PORT}`));
+
+process.on('SIGINT',graceful); process.on('SIGTERM',graceful);
+function graceful(){
+  console.log('\n🛑 shutdown'); httpServer.close(()=>db.close()); }

@@ -3,27 +3,35 @@
   "private": true,
   "version": "0.0.0",
   "type": "commonjs",
+
   "scripts": {
-    "dev:frontend": "vite",
-    "dev:backend": "NODE_ENV=development node server.js",
-    "debug:backend": "node --inspect=127.0.0.1:9229 server.js",
-    "proxy": "mitmproxy -s ./proxy/ua_sniffer.py --listen-port 8082 --ssl-insecure",
-    "build": "vite build",
+
+    "dev:frontend": "vite --port 5173",
+    "dev:backend" : "cross-env NODE_ENV=development node backend/server.cjs",
+    "dev:scanner" : "cross-env NODE_ENV=development node scanner/index.cjs",
+    "dev:proxy"   : "./venv/bin/mitmdump -s mitm/ua_sniffer.py -p 9999 --ssl-insecure",
+
+    "dev": "concurrently -n FRONTEND,BACKEND,SCANNER,PROXY -c magenta,blue,green,cyan \\\"npm:dev:frontend\\\" \\\"npm:dev:backend\\\" \\\"npm:dev:scanner\\\" \\\"npm:dev:proxy\\\"",
+
+
+    "debug:backend" : "node --inspect=127.0.0.1:9229 backend/server.cjs",
+    "debug:frontend": "vite --debug --port 5173",
+    "debug:proxy"   : "cd mitm && ./venv/bin/mitmdump -s ua_sniffer.py -p 9999 --ssl-insecure --set console_eventlog_verbosity=debug",
+
+    "debug:all": "concurrently -n FRONTEND,BACKEND,SCANNER,PROXY -c magenta,blue,green,cyan \\\"npm:debug:frontend\\\" \\\"npm:debug:backend\\\" \\\"npm:dev:scanner\\\" \\\"npm:debug:proxy\\\"",
+
+
+    "build"  : "vite build",
     "preview": "vite preview",
-    "start": "NODE_ENV=production node server.js",
-    "test": "NODE_ENV=test jest --coverage",
-    "lint": "eslint . --ext .js,.cjs",
-    "dev": "concurrently -n FRONTEND,BACKEND -c magenta,blue \"npm run dev:frontend\" \"npm run dev:backend\"",
-    "fix-ports": "kill $(lsof -t -i :3000 -i :8081 -i :8082) 2>/dev/null || echo 'No processes found'"
+    "start"  : "cross-env NODE_ENV=production node backend/server.cjs",
+
+
+    "test"       : "cross-env NODE_ENV=test jest --coverage",
+    "test:debug" : "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
+    "lint"       : "eslint . --ext .js,.cjs",
+    "postinstall": "patch-package"
   },
-  "devDependencies": {
-    "@types/node": "^24.0.14",
-    "concurrently": "^8.2.2",
-    "eslint": "^8.56.0",
-    "jest": "^29.7.0",
-    "prettier": "^3.5.3",
-    "vite": "^6.3.0"
-  },
+
   "dependencies": {
     "better-sqlite3": "^11.9.1",
     "chalk": "^5.4.1",
@@ -33,7 +41,6 @@
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
     "helmet": "^7.1.0",
-    "http-proxy": "^1.18.1",
     "json2csv": "^6.0.0-alpha.2",
     "morgan": "^1.10.0",
     "open": "^10.1.1",
@@ -43,8 +50,26 @@
     "socket.io": "4.8.1",
     "socket.io-client": "4.8.1",
     "sqlite": "^5.1.1",
-    "tail": "^2.2.6",
     "user-agent-parser": "^0.6.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "winston": "^3.15.0"
+  },
+
+  "devDependencies": {
+    "@types/node": "^24.0.14",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.5.3",
+    "vite": "^6.3.0",
+    "patch-package": "^8.0.0"
+  },
+
+  "engines": { "node": ">=18.0.0" },
+
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": ["/node_modules/", "/tests/", "/proxy/"]
   }
 }
