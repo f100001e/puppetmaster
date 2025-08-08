@@ -9,7 +9,7 @@
     "dev:frontend": "vite --port 5173",
     "dev:backend" : "cross-env NODE_ENV=development node backend/server.cjs",
     "dev:scanner" : "cross-env NODE_ENV=development node scanner/index.cjs",
-    "dev:proxy"   : "./venv/bin/mitmdump -s mitm/ua_sniffer.py -p 9999 --ssl-insecure",
+    "dev:proxy": "./venv/bin/mitmdump -s mitm/ua_sniffer.py --listen-port 9999 --listen-host 127.0.0.1 --ssl-insecure --set tls_version_client_min=TLS1_2 --set tls_version_server_min=TLS1_2",
 
     "dev": "concurrently -n FRONTEND,BACKEND,SCANNER,PROXY -c magenta,blue,green,cyan \\\"npm:dev:frontend\\\" \\\"npm:dev:backend\\\" \\\"npm:dev:scanner\\\" \\\"npm:dev:proxy\\\"",
 

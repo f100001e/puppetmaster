@@ -70,3 +70,18 @@ docker-compose.override.yml
 
 # Python virtual-env
 venv/
+mitm/venv/
+
+# local TLS stuff
+certs/*.key
+certs/*.crt
+certs/*.pem
+!certs/.gitkeep
+
+
+.env
+
+
+gtag_logs/
+data/*.db
+

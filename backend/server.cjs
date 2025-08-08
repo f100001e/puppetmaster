@@ -76,14 +76,25 @@ app.use((req, res, next) => {
 app.use(express.static(path.resolve(__dirname, '../public')));
 
 /*───────────────────────── 5. Socket.IO namespace ─────────────────────────*/
-const io = new Server(httpServer,{
-  cors:{ origin:ORIGINS, methods:['GET','POST'] },
-  transports:['websocket']
-});
+ const io = new Server(httpServer, {
+     cors: { origin: ORIGINS, methods: ['GET','POST'] },
+   transports: ['websocket'],       // only WebSocket transport
+     allowEIO3: true,                 // accept Engine.IO v3 (Python client)
+     perMessageDeflate: false         // disable RSV1 compression bit
+ });
 
 io.of('/scanner').on('connection',socket=>{
   console.log('⚡ socket',socket.id,'connected');
   socket.on('disconnect',()=>console.log('⚡ socket',socket.id,'disconnected'));
+});
+
+// Add this middleware BEFORE your routes:
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');  // Fix typo
+    return res.sendStatus(204);
+  }
+  next();
 });
 
 /*────────────────────────────── 6. Routes ─────────────────────────────────*/

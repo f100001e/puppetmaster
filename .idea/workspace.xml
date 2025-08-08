@@ -6,16 +6,15 @@
   <component name="ChangeListManager">
     <list default="true" id="cbfff8e6-22f0-4730-83fa-6bd89efa7dcd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/server.cjs" beforeDir="false" afterPath="$PROJECT_DIR$/backend/server.cjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/gtag_monitor.db" beforeDir="false" afterPath="$PROJECT_DIR$/data/gtag_monitor.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/gtag_monitor.db-shm" beforeDir="false" afterPath="$PROJECT_DIR$/data/gtag_monitor.db-shm" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/gtag_monitor.db-wal" beforeDir="false" afterPath="$PROJECT_DIR$/data/gtag_monitor.db-wal" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mitm/ua_sniffer.py" beforeDir="false" afterPath="$PROJECT_DIR$/mitm/ua_sniffer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/.package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/node_modules/.package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scanner/index.cjs" beforeDir="false" afterPath="$PROJECT_DIR$/scanner/index.cjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scanner/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/scanner/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -130,7 +129,8 @@
       <workItem from="1748453846462" duration="91000" />
       <workItem from="1752086952124" duration="78793000" />
       <workItem from="1753851964980" duration="21163000" />
-      <workItem from="1754508071694" duration="15609000" />
+      <workItem from="1754508071694" duration="16459000" />
+      <workItem from="1754586969499" duration="19259000" />
     </task>
     <servers />
   </component>
