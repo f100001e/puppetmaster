@@ -3,38 +3,27 @@
   "private": true,
   "version": "0.0.0",
   "type": "commonjs",
-
   "scripts": {
-
-    "dev:frontend": "vite --port 5173",
-    "dev:backend" : "cross-env NODE_ENV=development node backend/server.cjs",
-    "dev:scanner" : "cross-env NODE_ENV=development node scanner/index.cjs",
+    "dev:frontend": "cd scanner && vite",
+    "dev:backend": "cross-env NODE_ENV=development node backend/server.cjs",
+    "dev:scanner": "cross-env NODE_ENV=development node scanner/index.cjs",
     "dev:proxy": "./venv/bin/mitmdump -s mitm/ua_sniffer.py --listen-port 9999 --listen-host 127.0.0.1 --ssl-insecure --set tls_version_client_min=TLS1_2 --set tls_version_server_min=TLS1_2",
-
-    "dev": "concurrently -n FRONTEND,BACKEND,SCANNER,PROXY -c magenta,blue,green,cyan \\\"npm:dev:frontend\\\" \\\"npm:dev:backend\\\" \\\"npm:dev:scanner\\\" \\\"npm:dev:proxy\\\"",
-
-
-    "debug:backend" : "node --inspect=127.0.0.1:9229 backend/server.cjs",
+    "dev": "concurrently -n BACKEND,SCANNER,PROXY -c blue,green,cyan \"npm:dev:backend\" \"npm:dev:scanner\" \"npm:dev:proxy\"",
+    "debug:backend": "node --inspect=127.0.0.1:9229 backend/server.cjs",
     "debug:frontend": "vite --debug --port 5173",
-    "debug:proxy"   : "cd mitm && ./venv/bin/mitmdump -s ua_sniffer.py -p 9999 --ssl-insecure --set console_eventlog_verbosity=debug",
-
+    "debug:proxy": "cd mitm && ./venv/bin/mitmdump -s ua_sniffer.py -p 9999 --ssl-insecure --set console_eventlog_verbosity=debug",
     "debug:all": "concurrently -n FRONTEND,BACKEND,SCANNER,PROXY -c magenta,blue,green,cyan \\\"npm:debug:frontend\\\" \\\"npm:debug:backend\\\" \\\"npm:dev:scanner\\\" \\\"npm:debug:proxy\\\"",
-
-
-    "build"  : "vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "start"  : "cross-env NODE_ENV=production node backend/server.cjs",
-
-
-    "test"       : "cross-env NODE_ENV=test jest --coverage",
-    "test:debug" : "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
-    "lint"       : "eslint . --ext .js,.cjs",
+    "start": "cross-env NODE_ENV=production node backend/server.cjs",
+    "test": "cross-env NODE_ENV=test jest --coverage",
+    "test:debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
+    "lint": "eslint . --ext .js,.cjs",
     "postinstall": "patch-package"
   },
-
   "dependencies": {
     "better-sqlite3": "^11.9.1",
-    "chalk": "^5.4.1",
+    "chalk": "^4.1.2",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dotenv": "^16.5.0",
@@ -54,22 +43,26 @@
     "uuid": "^11.1.0",
     "winston": "^3.15.0"
   },
-
   "devDependencies": {
     "@types/node": "^24.0.14",
+    "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
+    "patch-package": "^8.0.0",
     "prettier": "^3.5.3",
-    "vite": "^6.3.0",
-    "patch-package": "^8.0.0"
+    "vite": "^7.1.7"
   },
-
-  "engines": { "node": ">=18.0.0" },
-
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "jest": {
     "testEnvironment": "node",
-    "coveragePathIgnorePatterns": ["/node_modules/", "/tests/", "/proxy/"]
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/",
+      "/proxy/"
+    ]
   }
 }

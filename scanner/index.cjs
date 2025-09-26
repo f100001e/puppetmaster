@@ -101,6 +101,43 @@ const app = express();
 
 app.get('/test', (_req, res) => res.type('text/plain').send('scanner ok\n'));
 
+// Add this route to scanner/index.cjs
+app.post('/analyze', (req, res) => {
+  try {
+    const { ua, url, cert_behavior, cert_risk_bonus, analysis_timestamp } = req.body;
+
+    // Perform threat analysis (your existing analyze function)
+    const analysis = analyse(req);
+
+    // Add certificate behavior to risk calculation
+    const enhancedScore = analysis.score + (cert_risk_bonus || 0);
+
+    // Create enhanced entry for backend
+    const entry = {
+      ts: analysis_timestamp || new Date().toISOString(),
+      method: 'PROXY',
+      url: url,
+      ip: 'mitmproxy',
+      ua: ua,
+      score: enhancedScore,
+      threats: analysis.threats,
+      cert_behavior: cert_behavior
+    };
+
+    // Forward analyzed data to backend
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+    fetch(`${backendUrl}/log_ua`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    }).catch(err => console.error('Backend forward failed:', err));
+
+    res.json({ status: 'analyzed', score: enhancedScore });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Place this LAST:
 app.use((req, res) => {
   const analysis = analyse(req);

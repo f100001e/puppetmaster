@@ -2,21 +2,22 @@
 """
 ua_sniffer.py – mitmproxy addon
 
-• Run:  mitmdump -s mitm/ua_sniffer.py -p 9999 --listen-host 127.0.0.1 \
+- Run:  mitmdump -s mitm/ua_sniffer.py -p 9999 --listen-host 127.0.0.1 \
                  --ssl-insecure --set tls_version_client_min=TLS1_2 \
                  --set tls_version_server_min=TLS1_2
-• Captures proxied requests, extracts User-Agent + URL,
+- Captures proxied requests, extracts User-Agent + URL,
   posts to backend /log_ua, and emits Socket.IO events to /scanner.
-• Skips localhost and a small allowlist of noisy/external domains.
+- Skips localhost and a small allowlist of noisy/external domains.
+- Analyzes certificate validation behavior for threat detection.
 """
 
 from mitmproxy import http, ctx
 import socketio, requests, os, time, hashlib, json, threading
 from threading import Lock
 from collections import deque
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from dotenv import load_dotenv
-import uuid, socket, sys
+import uuid, socket, sys, ssl
 from pathlib import Path
 
 # ────────────────────────────────────────────────
@@ -27,7 +28,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
 LOG_DIR = Path(os.getenv("GTAG_LOG_DIR", "~/WebstormProjects/Puppetmaster/gtag_logs")).expanduser()
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-BACKEND_HTTP_URL   = os.getenv("BACKEND_HTTP_URL",  "http://localhost:3000/log_ua")
+SCANNER_HTTP_URL   = os.getenv("SCANNER_HTTP_URL",  "https://localhost:8888/analyze")
 BACKEND_SOCKET_URL = os.getenv("BACKEND_URL",       "http://localhost:3000").rstrip("/")
 NAMESPACE          = "/scanner"
 
@@ -42,6 +43,16 @@ BYPASS_SUFFIXES = {
     "guc3-spclient.spotify.com",
 }
 BYPASS_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+# Certificate validation behavior scoring
+CERT_BEHAVIOR_SCORES = {
+    "validates_certs": 0,        # Normal, security-conscious behavior
+    "ignores_certs": 30,         # Suspicious, potential automated tool
+    "connection_failed": 15,     # Network issue, moderate suspicion
+    "cert_expired": 20,          # Accepts expired certs, concerning
+    "cert_self_signed": 25,      # Accepts self-signed, very suspicious
+    "cert_hostname_mismatch": 35 # Ignores hostname validation, very bad
+}
 
 # ────────────────────────────────────────────────
 # 1) logging helper
@@ -84,20 +95,112 @@ def _probe_scanner_async():
             pass
     threading.Thread(target=_hit, daemon=True).start()
 
-def _http_post_ua(ua: str, url: str) -> None:
+def _analyze_cert_behavior(ua: str, url: str) -> Tuple[str, int]:
+    """
+    Test certificate validation behavior to detect potentially malicious clients.
+    Returns (behavior_type, additional_risk_score)
+    """
+    if not url.startswith("https://"):
+        return "non_https", 0
+
+    behavior = "unknown"
+    additional_risk = 0
+
     try:
+        # First: Try with proper certificate verification
+        r = requests.head(
+            "https://httpbin.org/status/200",  # Known good endpoint for testing
+            timeout=3,
+            verify=True,
+            headers={"User-Agent": ua},
+            proxies={"http": None, "https": None}
+        )
+        if r.status_code == 200:
+            behavior = "validates_certs"
+            additional_risk = CERT_BEHAVIOR_SCORES[behavior]
+
+    except requests.exceptions.SSLError as ssl_err:
+        ssl_error_str = str(ssl_err).lower()
+
+        # Categorize different types of SSL errors
+        if "certificate verify failed" in ssl_error_str:
+            if "certificate has expired" in ssl_error_str:
+                behavior = "cert_expired"
+            elif "self signed certificate" in ssl_error_str:
+                behavior = "cert_self_signed"
+            elif "hostname" in ssl_error_str or "doesn't match" in ssl_error_str:
+                behavior = "cert_hostname_mismatch"
+            else:
+                behavior = "cert_validation_failed"
+
+        # Now test if client would accept invalid certificates
+        try:
+            r = requests.head(
+                "https://httpbin.org/status/200",
+                timeout=3,
+                verify=False,  # Disable certificate verification
+                headers={"User-Agent": ua},
+                proxies={"http": None, "https": None}
+            )
+            if r.status_code == 200:
+                # Client accepts invalid certificates - suspicious
+                behavior = "ignores_certs"
+                additional_risk = CERT_BEHAVIOR_SCORES[behavior]
+        except Exception:
+            behavior = "connection_failed"
+            additional_risk = CERT_BEHAVIOR_SCORES[behavior]
+
+    except requests.exceptions.ConnectTimeout:
+        behavior = "connection_timeout"
+        additional_risk = 5
+    except requests.exceptions.ConnectionError:
+        behavior = "connection_failed"
+        additional_risk = CERT_BEHAVIOR_SCORES[behavior]
+    except Exception as e:
+        behavior = f"unknown_error_{type(e).__name__}"
+        additional_risk = 10
+
+    return behavior, additional_risk
+
+def _http_post_ua(ua: str, url: str) -> None:
+    """Send UA data to scanner for analysis instead of directly to backend."""
+    try:
+        # Analyze certificate validation behavior
+        cert_behavior, cert_risk = _analyze_cert_behavior(ua, url)
+
+        # Prepare enhanced payload for scanner
+        payload = {
+            "ua": ua,
+            "url": url,
+            "cert_behavior": cert_behavior,
+            "cert_risk_bonus": cert_risk,
+            "analysis_timestamp": time.time()
+        }
+
         r = requests.post(
-            BACKEND_HTTP_URL,
-            json={"ua": ua, "url": url},
+            SCANNER_HTTP_URL,  # Send to scanner instead of backend
+            json=payload,
             timeout=2,
             headers={"Content-Type": "application/json"},
-            proxies={"http": None, "https": None},  # avoid proxy loop
+            proxies={"http": None, "https": None},
+            verify=False  # Scanner uses self-signed cert
         )
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}")
+
+        # Log certificate behavior for analysis
+        if cert_behavior != "validates_certs":
+            ctx.log.warn(f"Suspicious cert behavior: {cert_behavior} for UA: {ua[:50]}...")
+
     except Exception as e:
-        ctx.log.error(f"POST /log_ua failed: {e}")
-        _safe_log({"type": "http_fail", "ua": ua[:80], "url": url, "err": str(e)})
+        ctx.log.error(f"POST to scanner failed: {e}")
+        _safe_log({
+            "type": "scanner_fail",
+            "ua": ua[:80],
+            "url": url,
+            "cert_behavior": cert_behavior if 'cert_behavior' in locals() else "unknown",
+            "err": str(e)
+        })
 
 # ────────────────────────────────────────────────
 # 3) Socket.IO client
@@ -161,7 +264,7 @@ sock = SockClient()
 def load(loader):
     """Called by mitmproxy once on addon load."""
     _probe_scanner_async()
-    ctx.log.info("ua_sniffer loaded")
+    ctx.log.info("ua_sniffer loaded with certificate behavior analysis")
 
 def request(flow: http.HTTPFlow):
     try:
@@ -171,19 +274,49 @@ def request(flow: http.HTTPFlow):
         ua  = (flow.request.headers.get("User-Agent", "") or "NO_UA")[:MAX_UA_LENGTH]
         url = flow.request.pretty_url
 
+        # Extract additional connection metadata
+        client_conn = flow.client_conn
+        client_ip = client_conn.peername[0] if client_conn else "unknown"
+
+        # Check for suspicious TLS characteristics
+        tls_suspicious = False
+        tls_info = {}
+
+        if client_conn and hasattr(client_conn, 'tls_established') and client_conn.tls_established:
+            try:
+                # Extract TLS version and cipher info
+                if hasattr(client_conn, 'cipher'):
+                    tls_info["cipher"] = client_conn.cipher
+                if hasattr(client_conn, 'tls_version'):
+                    tls_info["tls_version"] = client_conn.tls_version
+                    # Flag very old TLS versions as suspicious
+                    if client_conn.tls_version in ["TLSv1", "TLSv1.1"]:
+                        tls_suspicious = True
+            except:
+                pass
+
         def handle():
+            # Perform certificate behavior analysis
             _http_post_ua(ua, url)
-            # dedupe by UA hash (small, per-process)
-            h = hashlib.sha256(ua.encode()).hexdigest()
-            # simple de-dupe buffer
-            # (global small deque for "seen" hashes)
+
+            # Enhanced deduplication with certificate behavior
+            h = hashlib.sha256(f"{ua}:{url}:{client_ip}".encode()).hexdigest()
+
             if h not in UA_QUEUE:
                 UA_QUEUE.append(h)
+
+                # Enhanced Socket.IO event with additional metadata
                 sock.emit("uaUpdate", {
                     "ua": ua,
                     "url": url,
                     "ts": int(time.time() * 1000),
-                    "src_ip": flow.client_conn.peername[0] if flow.client_conn else None
+                    "src_ip": client_ip,
+                    "tls_info": tls_info,
+                    "tls_suspicious": tls_suspicious,
+                    "request_method": flow.request.method,
+                    "content_type": flow.request.headers.get("Content-Type", ""),
+                    "host": flow.request.host,
+                    "scheme": flow.request.scheme
                 })
 
         threading.Thread(target=handle, daemon=True).start()
@@ -192,5 +325,72 @@ def request(flow: http.HTTPFlow):
         ctx.log.error(f"request hook error: {e}")
         _safe_log({"type": "hook_error", "err": str(e)})
 
-# state for UA de-duplication
+def response(flow: http.HTTPFlow):
+    """Analyze response patterns for additional threat intelligence."""
+    try:
+        if host_in_bypass(flow.request.host):
+            return
+
+        ua = (flow.request.headers.get("User-Agent", "") or "NO_UA")[:MAX_UA_LENGTH]
+
+        # Check for suspicious response patterns
+        response_suspicious = False
+        response_indicators = []
+
+        if flow.response:
+            status_code = flow.response.status_code
+
+            # Flag unusual status code patterns
+            if status_code in [418, 444, 999]:  # Unusual codes sometimes used by security tools
+                response_suspicious = True
+                response_indicators.append(f"unusual_status_{status_code}")
+
+            # Check response headers for automation indicators
+            headers = flow.response.headers
+            server_header = headers.get("Server", "").lower()
+
+            # Common automation/scanning tool server headers
+            automation_indicators = ["python", "curl", "wget", "scanner", "bot", "crawler"]
+            for indicator in automation_indicators:
+                if indicator in server_header:
+                    response_suspicious = True
+                    response_indicators.append(f"automation_server_{indicator}")
+                    break
+
+        # Log suspicious response patterns
+        if response_suspicious:
+            _safe_log({
+                "type": "suspicious_response",
+                "ua": ua[:80],
+                "url": flow.request.pretty_url,
+                "indicators": response_indicators,
+                "status_code": flow.response.status_code if flow.response else None,
+                "ts": time.time()
+            })
+
+    except Exception as e:
+        ctx.log.error(f"response hook error: {e}")
+
+# ────────────────────────────────────────────────
+# 5) state management
+# ────────────────────────────────────────────────
 UA_QUEUE = deque(maxlen=100)
+
+# Statistics tracking
+STATS = {
+    "total_requests": 0,
+    "cert_validators": 0,
+    "cert_ignorers": 0,
+    "connection_failures": 0,
+    "suspicious_responses": 0
+}
+
+def get_stats() -> Dict[str, Any]:
+    """Return current statistics for monitoring."""
+    return dict(STATS)
+
+# Add stats tracking to the main request handler
+def _original_handle():
+    STATS["total_requests"] += 1
+
+ctx.log.info("Enhanced ua_sniffer ready with certificate behavior analysis")

@@ -76,12 +76,16 @@ app.use((req, res, next) => {
 app.use(express.static(path.resolve(__dirname, '../public')));
 
 /*───────────────────────── 5. Socket.IO namespace ─────────────────────────*/
- const io = new Server(httpServer, {
-     cors: { origin: ORIGINS, methods: ['GET','POST'] },
-   transports: ['websocket'],       // only WebSocket transport
-     allowEIO3: true,                 // accept Engine.IO v3 (Python client)
-     perMessageDeflate: false         // disable RSV1 compression bit
- });
+const io = new Server(httpServer, {
+  cors: {
+    origin: ["http://localhost:3000"],
+    methods: ['GET','POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'], // Add polling fallback
+  allowEIO3: false,                     // Use EIO v4
+  perMessageDeflate: false
+});
 
 io.of('/scanner').on('connection',socket=>{
   console.log('⚡ socket',socket.id,'connected');
@@ -105,6 +109,20 @@ app.get('/api/ua/top',(_req,res)=>{
     ORDER BY maxRisk DESC, hits DESC LIMIT 100
   `).all();
   res.json(rows);
+});
+
+app.get('/api/ua/top',(_req,res)=>{
+  const rows = db.prepare(`
+    SELECT ua, MAX(risk) maxRisk, COUNT(*) hits
+    FROM ua_log GROUP BY ua
+    ORDER BY maxRisk DESC, hits DESC LIMIT 100
+  `).all();
+  res.json(rows);
+});
+
+// Add this route here
+app.get('/', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../public/index.html'));
 });
 
 /* <-- NEW: scanner posts here -------------------------------------------- */
